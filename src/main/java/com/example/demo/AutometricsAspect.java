@@ -6,24 +6,30 @@ import io.micrometer.prometheus.PrometheusMeterRegistry;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.util.Properties;
 
 @Aspect
 @Component
 public class AutometricsAspect {
 
-    @Value("${git.commit.id}")
-    private String commitId;
-
     private final PrometheusMeterRegistry registry;
     private final Gauge gauge;
 
-    public AutometricsAspect(PrometheusMeterRegistry registry, Environment environment) {
+    public AutometricsAspect(PrometheusMeterRegistry registry, Environment environment) throws IOException {
+        Properties properties = new Properties();
+        properties.load(getClass().getClassLoader().getResourceAsStream("git.properties"));
+        String gitCommitId = properties.getProperty("git.commit.id.full");
+        String gitBranch = properties.getProperty("git.branch");
+
         this.registry = registry;
         this.gauge = Gauge.builder("build_info", () -> 1.0)
                 .tags("version", environment.getProperty("app.version"))
+                .tags("commit", gitCommitId != null ? gitCommitId : "unknown")
+                .tags("branch", gitBranch != null ? gitBranch : "unknown")
                 .register(registry);
     }
 
